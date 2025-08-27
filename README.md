@@ -1,7 +1,7 @@
 # scratchpad
-Scripts and snippets - usually in Work-in-progress state.
+This project is dual-licensed.
 
-Use at own risk.
+• Code: 0BSD License (see LICENSE-0BSD)
+• Notes/docs: Creative Commons Attribution 4.0 International (see LICENSE-CC-BY-4.0)
 
-Licensed: CC0 - WTFPL - Unlicense
-
+You may use either license as applicable.
