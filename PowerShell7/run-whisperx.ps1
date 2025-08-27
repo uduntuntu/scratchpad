@@ -1,7 +1,16 @@
 [CmdletBinding()]
 param(
-  [ValidateRange(1,4)][int]$jobs = 3
+  [ValidateRange(1,4)][int]$jobs = 3,
+  [ValidateRange(1,35)][int]$minParticipants,
+  [ValidateRange(1,35)][int]$maxParticipants
 )
+
+# --- PowerShell 7 check ---
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+  $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+  if ($pwsh) { & $pwsh -NoLogo -File $MyInvocation.MyCommand.Path @args; exit $LASTEXITCODE }
+  throw "PowerShell 7+ required. Install pwsh and re-run."
+}
 
 function Get-ThreadCount {
     param([int]$Jobs)
@@ -34,12 +43,23 @@ $whisperx_switches = @(
   "--output_format", "all"
 )
 
-# --- PowerShell 7 check ---
-if ($PSVersionTable.PSVersion.Major -lt 7) {
-  $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
-  if ($pwsh) { & $pwsh -NoLogo -File $MyInvocation.MyCommand.Path @args; exit $LASTEXITCODE }
-  throw "PowerShell 7+ required. Install pwsh and re-run."
+# ---- Speaker constraints ----
+if ($PSBoundParameters.ContainsKey('MinParticipants') -and
+    $PSBoundParameters.ContainsKey('MaxParticipants')) {
+
+    # Just don't assume. Exit if illogical numbers.
+    if($MinParticipants -gt $maxParticipants) {
+      throw "Participants mismatch (min bigger than max)"
+      exit 0
+    }
+} elseif ($PSBoundParameters.ContainsKey('MaxParticipants')) {
+    # only max given -> leave min unset
+    $whisperx_switches += @("--max_speakers", $MaxParticipants.ToString())
+} elseif ($PSBoundParameters.ContainsKey('MinParticipants')) {
+    # only min given -> leave max unset
+    $whisperx_switches += @("--min_speakers", $MaxParticipants.ToString())
 }
+# else: neither given → leave unset (default WhisperX behavior)
 
 # --- Virtualenv check (FIXED) ---
 $virtualenv_py = (where.exe python.exe 2>$null | Select-Object -First 1)
@@ -70,7 +90,8 @@ $files = Get-ChildItem -File | Where-Object { $_.Extension -in ".mp3", ".wav" }
 if ($files.Count -lt $jobs) {
     $jobs = $files.Count
     $threads = Get-ThreadCount -Jobs $jobs
-}
+} elseif (-not $files) { Write-Host "No .mp3/.wav files found."; exit 0 }
+
 
 # --- Parallel loop ---
 $files | ForEach-Object -Parallel {
@@ -94,9 +115,9 @@ $files | ForEach-Object -Parallel {
     Add-Content run.log "[$jobid] $p -- job started at $start"
 
     # run WhisperX
-    & $using:virtualenv_py -m whisperx $using:whisperx_switches `
-        --output_dir $outDir $p 1> (Join-Path $outDir "$name.log") 2>&1 3>&1 4>&1 5>&1 6>&1 |
-        ForEach-Object { "[$jobid] $_" } | Add-Content -Path "run.log"
+    & $using:virtualenv_py -m whisperx $using:whisperx_switches --output_dir $outDir $p 1> `
+      (Join-Path $outDir "$name.log") 2>&1 3>&1 4>&1 5>&1 6>&1 | `
+      ForEach-Object { "[$jobid] $_" } | Add-Content -Path "run.log"
 
     $end = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Add-Content run.log "[$jobid] $p -- job finished at $end -- exit code $LASTEXITCODE"
