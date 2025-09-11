@@ -86,7 +86,7 @@ $env:OMP_NUM_THREADS  = $threads
 $env:MKL_NUM_THREADS  = $threads
 
 # --- Files ---
-$files = Get-ChildItem -File | Where-Object { $_.Extension -in ".mp3", ".wav" }
+$files = Get-ChildItem -File | Where-Object { $_.Extension -in ".mp3", ".wav", ".ogg" }
 if ($files.Count -lt $jobs) {
     $jobs = $files.Count
     $threads = Get-ThreadCount -Jobs $jobs
