@@ -7,4 +7,4 @@ This project is dual-licensed.
 You may use either license as applicable.
 
 ## Scripts
-Currently I have some WIP snippets in device-specific branches. When these are ready to use in many different situations (e.g. different display setups) I'm planning to bring stable enough pieces into main branch.
+Currently I have some WIP snippets in device-specific branches. When these are ready to use in many different situations (e.g. different display setups) I'm planning to cherry-pick stable enough pieces into main branch.
