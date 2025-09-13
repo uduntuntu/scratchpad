@@ -5,3 +5,6 @@ This project is dual-licensed.
 2) Notes/docs: Creative Commons Attribution 4.0 International (see LICENSE-CC-BY-4.0)
 
 You may use either license as applicable.
+
+## Scripts
+Currently I have some WIP snippets in device-specific branches. When these are ready to use in many different situations (e.g. different display setups) I'm planning to bring stable enough pieces into main branch.
