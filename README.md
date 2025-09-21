@@ -1,10 +1,6 @@
-# scratchpad
-This project is dual-licensed.
-
-1) Code: 0BSD License (see LICENSE-0BSD)
-2) Notes/docs/artwork: Creative Commons Attribution 4.0 International (see LICENSE-CC-BY-4.0)
-
-You may use either license as applicable.
+# scratchpad of uduntuntu
+## haavi
+Macbook Pro 13" (12,1 - early 2015) with 8 GB RAM, solid SSD storage and decent battery).
 
 ## Scripts
-Currently I have some WIP snippets in device-specific branches. When these are ready to use in many different situations (e.g. different display setups) I'm planning to cherry-pick stable enough pieces into main branch.
+Mainly i3 improvements related to laptop use with many different display leyouts.
