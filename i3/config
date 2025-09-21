@@ -1,0 +1,41 @@
+# i3 config file (v4)
+#
+# please see https://i3wm.org/docs/userguide.html for a complete reference!
+
+set $mod mod4
+
+# font for window titles. 
+font pango:anonymous pro 10
+
+# mouse cursor theme
+set_from_resource $xcursorsize Xcursor.size 24
+exec_always --no-startup-id xsetroot -cursor_name left_ptr
+exec_always --no-startup-id xrdb -merge ~/.Xresources
+exec_always --no-startup-id export XCURSOR_SIZE=24
+exec_always --no-startup-id export XCURSOR_THEME=Adwaita
+
+# start xdg autostart .desktop files using dex. see also
+# https://wiki.archlinux.org/index.php/xdg_autostart
+exec --no-startup-id dex --autostart --environment i3
+
+# set displays
+exec_always --no-startup-id ~/.local/bin/display-setup.sh
+exec_always --no-startup-id ~/.local/bin/wallpapers-randomizer.sh
+
+### Keyboard layout: Finnish
+# exec_always --no-startup-id setxkbmap fi
+
+# NetworkManager is the most popular way to manage wireless networks on Linux,
+# and nm-applet is a desktop environment-independent system tray GUI for it.
+exec --no-startup-id nm-applet
+
+# The combination of xss-lock, nm-applet and pactl is a popular choice, so
+# they are included here as an example. Modify as you see fit.
+
+# xss-lock grabs a logind suspend inhibit lock and will use i3lock to lock the
+# screen before suspend. Use loginctl lock-session to lock your screen.
+exec --no-startup-id xss-lock --transfer-sleep-lock --ignore-fullscreen -- i3lock --nofork
+
+# Include split configs
+include ~/.config/i3/config.d/*.conf
+

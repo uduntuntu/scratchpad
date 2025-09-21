@@ -1,0 +1,26 @@
+# ~/.config/i3blocks/config
+
+[volume]
+command=amixer get Master | awk -F'[][]' 'END{ print "🔊 " $2 }'
+interval=1
+
+[cpu]
+command=~/.local/bin/cpu-i3blocks.sh
+interval=10
+
+[openvpn]
+command=~/.local/bin/i3blocks-openvpn.sh
+interval=10
+
+[network]
+command=~/.local/bin/i3blocks-wifi.sh
+interval=10
+
+[memory]
+command=free -h | awk '/Mem:/ {print "MEM: " $3 "/" $2}'
+interval=30
+
+[time]
+command=date '+%H:%M'
+interval=30
+
