@@ -24,3 +24,6 @@ interval=30
 command=date '+%H:%M'
 interval=30
 
+[battery]
+command=/usr/share/i3blocks/battery
+interval=30
