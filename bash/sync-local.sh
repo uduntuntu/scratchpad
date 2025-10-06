@@ -1,4 +1,4 @@
-#!bin/bash
+#!/bin/bash
 for f in $(ls);
 do
 	[ "$f" = "sync-local.sh" ] && continue
