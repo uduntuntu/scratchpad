@@ -8,6 +8,10 @@ interval=1
 command=~/.local/bin/cpu-i3blocks.sh
 interval=10
 
+[cpu_temp]
+command=/usr/share/i3blocks/temperature --chip coretemp-isa-0000 -w 80 -c 95
+interval=10
+
 [openvpn]
 command=~/.local/bin/i3blocks-openvpn.sh
 interval=10
