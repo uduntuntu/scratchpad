@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import getpass
+import imaplib
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,7 +24,11 @@ def load_config(path: Path) -> dict[str, Any]:
 def connect_imap() -> imaplib.IMAP4_SSL:
     """Load config, connect to IMAP server and authenticate."""
     cfg = load_config(CONFIG_PATH)
+def connect_imap() -> imaplib.IMAP4_SSL:
+    """Load config, connect to IMAP server and authenticate."""
+    cfg = load_config(CONFIG_PATH)
     imap_cfg = cfg["imap"]
+
 
     password = getpass.getpass("IMAP password: ")
 
@@ -32,7 +38,6 @@ def connect_imap() -> imaplib.IMAP4_SSL:
             imap_cfg.get("port", 993),
         )
         client.login(imap_cfg["user"], password)
-        print("Connection: OK")
     except imaplib.IMAP4.error as e:
         msg = e.args[0]
         if isinstance(msg, bytes):
@@ -42,10 +47,16 @@ def connect_imap() -> imaplib.IMAP4_SSL:
 
     return client
 
+        print(msg)
+        sys.exit(1)
+
+    return client
+
 
 def main() -> None:
     client = connect_imap()
-    client.logout
+    print("Connection: OK")
+    client.logout()
 
 
 if __name__ == "__main__":
