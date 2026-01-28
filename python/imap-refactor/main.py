@@ -47,11 +47,6 @@ def connect_imap() -> imaplib.IMAP4_SSL:
 
     return client
 
-        print(msg)
-        sys.exit(1)
-
-    return client
-
 
 def main() -> None:
     client = connect_imap()
