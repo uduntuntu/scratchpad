@@ -1,0 +1,6 @@
+imap:
+  host: <host>
+  port: 993
+  user: <username>
+  ssl: true
+  readonly: true
