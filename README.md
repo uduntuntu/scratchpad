@@ -1,12 +1,20 @@
 # scratchpad
+
 This project is dual-licensed.
 
-1) Code: 0BSD License (see LICENSE-0BSD)
-2) Notes/docs/artwork: Creative Commons Attribution 4.0 International (see LICENSE-CC-BY-4.0)
+1) Code: BSD Zero Clause License (see LICENSE-0BSD)  
+2) Notes, documentation, and artwork: Creative Commons Attribution 4.0 International (see LICENSE-CC-BY-4.0)
 
-You may use either license as applicable.
+Each license applies to its respective content.
 
 ## Scripts
-Currently I have some WIP snippets in device-specific branches. When these are ready to use in many different situations (e.g. different display setups) I'm planning to cherry-pick stable enough pieces into main branch.
 
-Active development is happening in dev-branch from where I'm going to merge production ready code into main or device-specific branches.
+This repository contains work-in-progress snippets, often developed in
+device-specific branches.
+
+Once a script is considered stable and generally applicable
+(e.g. across different display or hardware setups), it is cherry-picked
+into the `main` branch.
+
+Active development happens on the `dev` branch. Production-ready code is
+merged into `main` or, when appropriate, into device-specific branches.
