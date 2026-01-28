@@ -1,0 +1,32 @@
+# --- Secrets & configuration ---
+config.yaml
+config/*.yaml
+!config/config.example.yaml
+
+.env
+.env.*
+
+# --- Classified / sensitive data ---
+.classified/
+*.classified
+
+# --- Data artifacts ---
+*.csv
+*.json
+*.txt
+*.log
+
+# --- Python ---
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# --- Editor / OS ---
+.vscode/
+.DS_Store
+*~
+*.swp
+*.swo
+*.swn
+*.un~
