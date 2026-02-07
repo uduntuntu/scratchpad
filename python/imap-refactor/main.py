@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-
 import getpass
 import imaplib
 import sys
@@ -8,21 +7,54 @@ from pathlib import Path
 from typing import Any
 import yaml
 import email
-from email.utils import parsedate_to_datetime
+from email.header import decode_header
+from imapclient import IMAPClient
+from imapclient import imap_utf7
 
 CONFIG_PATH = Path("config.yaml")
-MAX_MATCHES = 30
+
+# encode/decode helpers
+def decode_imap_utf7(raw: bytes) -> str:
+    return imap_utf7.decode(raw)
+
+def encode_imap_utf7(text: str) -> bytes:
+    return imap_utf7.encode(text)
 
 
+def decode_mime_header(val: str) -> str:
+    """Decodes MIME-encoded headers to UTF-8, unknown charsets fallback to latin1."""
+    decoded = ""
+    for part, charset in decode_header(val):
+        if isinstance(part, bytes):
+            try:
+                decoded += part.decode(charset or "utf-8", errors="replace")
+            except (LookupError, TypeError):
+                decoded += part.decode("latin1", errors="replace")
+        else:
+            decoded += part
+    return decoded
+
+def filter_by_substring(items: set[bytes], needle: str) -> set[bytes]:
+    """
+    Returns subset of raw bytes where decoded item contains the Unicode needle.
+    Works for mailbox selection or any IMAP raw-byte sets.
+    """
+    result: set[bytes] = set()
+    for item in items:
+        decoded = decode_imap_utf7(item)
+        if needle in decoded:
+            result.add(item)  # raw bytes IMAP-ready
+    return result
+
+# --- load config ---
 def load_config(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
-
+# --- connect IMAP ---
 def connect_imap() -> imaplib.IMAP4_SSL:
     cfg = load_config(CONFIG_PATH)
     imap_cfg = cfg["imap"]
-
     password = getpass.getpass("IMAP password: ")
     try:
         client = imaplib.IMAP4_SSL(
@@ -36,178 +68,157 @@ def connect_imap() -> imaplib.IMAP4_SSL:
             msg = msg.decode(errors="replace")
         print(msg)
         sys.exit(1)
-
     return client
 
-
-def fetch_mailboxes(client: imaplib.IMAP4) -> list[str]:
+# --- fetch mailboxes ---
+def fetch_mailboxes(client: imaplib.IMAP4) -> set[bytes]:
     status, data = client.list()
     if status != "OK":
         raise RuntimeError("IMAP LIST failed")
 
-    mailboxes: list[str] = []
+    mailboxes: set[bytes] = set()
     for raw in data:
-        if raw is None:
+        if not raw:
             continue
-
-        text = raw.decode("utf-8", errors="replace")
-        # IMAP LIST: (<flags>) "<delimiter>" <mailbox>
-        parts = text.split(" ", 2)
-        if len(parts) < 3:
-            continue
-
-        mailbox = parts[2].strip().strip('"')
-        mailboxes.append(mailbox)
-
+        mbx = raw.rsplit(b" ", 1)[-1].strip()
+        if mbx.startswith(b'"') and mbx.endswith(b'"'):
+            mbx = mbx[1:-1]
+        mailboxes.add(mbx)
     return mailboxes
 
-
-def filter_by_substring(items: list[str], needle: str) -> list[str]:
-    return [item for item in items if needle in item]
-
-
-def search_by_header(
-    client: imaplib.IMAP4,
-    header: str,
-    needle: str,
-) -> None:
-    try:
-        status, data = client.search(
-            None,
-            "HEADER",
-            header,
-            f'"{needle}"',
-        )
-    except imaplib.IMAP4.error as e:
-        print(f"SEARCH failed: {e}")
-        return
-
+# --- fetch all headers from a mailbox ---
+def fetch_headers(client: imaplib.IMAP4, mailbox: bytes) -> dict[bytes, dict[str, str]]:
+    """
+    Fetches all message headers from the selected mailbox.
+    Returns dict: {msg_uid: {header: value, ...}}, headers decoded to UTF-8.
+    """
+    client.select(mailbox, readonly=True)
+    status, data = client.search(None, "ALL")
     if status != "OK":
-        print("SEARCH failed")
-        return
+        raise RuntimeError("IMAP SEARCH failed")
 
     msg_ids = data[0].split()
-    if not msg_ids:
-        print("No matches.")
-        return
+    headers_by_uid: dict[bytes, dict[str, str]] = {}
 
-    for msg_id in msg_ids:
-        status, msg_data = client.fetch(
-            msg_id,
-            "(BODY.PEEK[HEADER.FIELDS (DATE SUBJECT)])",
-        )
+    for uid in msg_ids:
+        status, msg_data = client.fetch(uid, "(BODY.PEEK[HEADER])")
         if status != "OK":
             continue
-
         raw_headers = msg_data[0][1]
         msg = email.message_from_bytes(raw_headers)
+        decoded_headers = {k: decode_mime_header(v) for k, v in msg.items()}
+        headers_by_uid[uid] = decoded_headers
 
-        date_hdr = msg.get("Date")
-        if date_hdr:
-            try:
-                dt = parsedate_to_datetime(date_hdr)
-                date_str = dt.isoformat()
-            except Exception:
-                date_str = date_hdr
-        else:
-            date_str = "(no Date)"
+    return headers_by_uid
 
-        subject = msg.get("Subject", "(no Subject)")
-        print(f"{date_str} | {subject}")
+# --- header helpers ---
+def all_uids(headers_by_uid: dict[bytes, dict[str, str]]) -> set[bytes]:
+    return set(headers_by_uid.keys())
 
+def list_unique_addresses(headers_by_uid: dict[bytes, dict[str, str]], header: str) -> set[str]:
+    unique: set[str] = set()
+    for hdrs in headers_by_uid.values():
+        val = hdrs.get(header, "")
+        if val:
+            addresses = [addr.strip() for addr in val.split(",")]
+            unique.update(addresses)
+    return unique
 
+def list_headers(headers_by_uid: dict[bytes, dict[str, str]]) -> set[str]:
+    all_headers: set[str] = set()
+    for hdrs in headers_by_uid.values():
+        all_headers.update(hdrs.keys())
+    return all_headers
 
+def filter_by_header_value(headers_by_uid: dict[bytes, dict[str, str]], header: str, needle: str) -> set[bytes]:
+    """Returns UID set where the header contains the Unicode needle."""
+    result: set[bytes] = set()
+    for uid, hdrs in headers_by_uid.items():
+        val = hdrs.get(header, "")
+        if needle in val:
+            result.add(uid)
+    return result
+
+def print_messages(headers_by_uid: dict[bytes, dict[str, str]], uid_set: set[bytes]) -> None:
+    for uid in sorted(uid_set):
+        hdrs = headers_by_uid[uid]
+        date = hdrs.get("Date", "(no Date)")
+        from_ = hdrs.get("From", "(no From)")
+        to = hdrs.get("To", "(no To)")
+        subject = hdrs.get("Subject", "(no Subject)")
+        print(f"{date} | {from_} -> {to}: {subject}")
+
+# --- main ---
 def main() -> None:
     client = connect_imap()
     print("Connection: OK")
 
     mailboxes = fetch_mailboxes(client)
-    matches: list[str] = []
+    mailbox_bytes: bytes | None = None
 
-    while len(matches) != 1:
-        user_input = input("Mailbox substring: ").strip()
-        if not user_input:
-            continue
+    # --- mailbox selection ---
+    while mailbox_bytes is None:
+        needle = input("Select mailbox (partial name OK): ").strip()
+        matches = filter_by_substring(mailboxes, needle)
 
-        matches = filter_by_substring(mailboxes, user_input)
-
-        if len(matches) == 0:
-            print("No matches.")
-        elif len(matches) > MAX_MATCHES:
-            print(
-                f"Too many matches ({len(matches)}). "
-                "Please refine your input."
-            )
+        if not matches:
+            print("No matches found. Try again.")
         elif len(matches) > 1:
-            for m in matches:
-                print(m)
-            print("Refine substring.")
-
-    mailbox = matches[0]
-    print(f"Selected mailbox: {mailbox}")
-
-    client.select(mailbox, readonly=True)
-    
-    print("Select search header:")
-    print("1. TO")
-    print("2. X-Rspam-Report")
-
-    while True:
-        choice = input("Choice (1–2): ").strip()
-        if choice == "1":
-            search_header = "TO"
-            break
-        if choice == "2":
-            search_header = "X-Rspam-Report"
-            break
-        print("Invalid choice.")
-
-    # main search loop
-    while True:
-        needle = input(f"Search {search_header} substring (or 'exit'): ").strip()
-        if not needle:
-            continue
-        if needle.lower() == "exit":
-            break
-
-        if search_header == "TO":
-            try:
-                status, data = client.search(None, "TO", f'"{needle}"')
-            except imaplib.IMAP4.error as e:
-                print(f"SEARCH failed: {e}")
-                continue
-
-            msg_ids = data[0].split()
-            if not msg_ids:
-                print("No matches.")
-                continue
-
-            for msg_id in msg_ids:
-                status, msg_data = client.fetch(
-                    msg_id,
-                    "(BODY.PEEK[HEADER.FIELDS (DATE SUBJECT)])",
-                )
-                if status != "OK":
-                    continue
-                raw_headers = msg_data[0][1]
-                msg = email.message_from_bytes(raw_headers)
-                date_hdr = msg.get("Date")
-                date_str = (
-                    parsedate_to_datetime(date_hdr).isoformat()
-                    if date_hdr else "(no Date)"
-                )
-                subject = msg.get("Subject", "(no Subject)")
-                print(f"{date_str} | {subject}")
-
+            print("Multiple matches found:")
+            for mb in sorted(matches):
+                print(f"- {decode_imap_utf7(mb)}")
+            print("Enter a more precise name.")
         else:
-            search_by_header(
-                client,
-                header="X-Rspam-Report",
-                needle=needle,
-            )
+            mailbox_bytes = next(iter(matches))
+            print(f"Selected mailbox: {decode_imap_utf7(mailbox_bytes)}")
+
+    headers_by_uid = fetch_headers(client, mailbox_bytes)
+    uid_set: set[bytes] = set(headers_by_uid.keys())
+    print(f"Fetched {len(uid_set)} messages from {decode_imap_utf7(mailbox_bytes)}")
+
+    # --- main menu ---
+    while True:
+        print("\nMenu:")
+        print("1. List unique senders")
+        print("2. List unique recipients")
+        print("3. List headers")
+        print("4. Filter UID set by header")
+        print("5. Print filtered set")
+        print("0. Exit")
+        choice = input("Choice: ").strip()
+
+        if choice == "0":
+            break
+        elif choice == "1":
+            senders = list_unique_addresses(headers_by_uid, "From")
+            print(f"Unique senders ({len(senders)}):")
+            for s in sorted(senders):
+                print(s)
+        elif choice == "2":
+            recipients = list_unique_addresses(headers_by_uid, "To")
+            print(f"Unique recipients ({len(recipients)}):")
+            for r in sorted(recipients):
+                print(r)
+        elif choice == "3":
+            hdrs = list_headers(headers_by_uid)
+            print(f"Header fields ({len(hdrs)}):")
+            for h in sorted(hdrs):
+                print(h)
+        elif choice == "4":
+            reset = input("Reset UID set before filtering? (y/N) ").strip().lower()
+            if reset == "y":
+                uid_set = all_uids(headers_by_uid)
+            header = input("Header: ").strip()
+            needle = input("Value to search: ").strip()
+            filtered = filter_by_header_value(headers_by_uid, header, needle)
+            uid_set &= filtered
+            print(f"Filtered, {len(uid_set)} messages remaining")
+        elif choice == "5":
+            print_messages(headers_by_uid, uid_set)
+        else:
+            print("Invalid choice")
 
     client.logout()
-
 
 if __name__ == "__main__":
     main()
