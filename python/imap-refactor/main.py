@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 from backend import IMAPBackend
 from helpers import (
@@ -11,6 +10,9 @@ from helpers import (
 )
 import getpass
 
+# --- custom exception for returning to main menu ---
+class ExitToMenu(Exception):
+    pass
 
 def main() -> None:
     # --- credentials ---
@@ -18,82 +20,120 @@ def main() -> None:
     user = input("Username: ").strip()
     password = getpass.getpass("Password: ")
 
-    backend = IMAPBackend(host, user, password)
-    client = backend.connect()
+    account = IMAPBackend(host, user, password)
+    client = account.connect()
+    mailboxes = account.list_mailboxes(client)
+
+    headers_by_uid = dict[int, dict[str, str]] | None
+    uid_set = set[int] | None
+    headers = set[str] | None
     print("Connection: OK")
 
-    # --- select mailbox  ---
-    mailboxes = backend.list_mailboxes(client)
-    mailbox = None
+    # --- helper for consistent user input ---
+    def needle(prompt: str) -> str:
+        """
+        Prompt user for input. Raises ExitToMenu if user types 'exit'.
+        Strips whitespace automatically.
+        """
+        value = input(f"{prompt} (or 'exit'): ").strip()
+        if value.lower() == "exit":
+            raise ExitToMenu()
+        return value
 
-    while not mailbox:
-        needle = None
-        needle = input("Select mailbox (partial name OK or 'exit'): ").strip()
-        if needle.lower() == "exit":
-            client.logout()
-            break
-        else:
-            mailbox = select_unique(mailboxes, needle)
+    # --- define menu actions ---
+    def select_mailbox():
+        nonlocal headers_by_uid, uid_set, headers
+        
+        mailbox = None
+        mailbox = select_unique(mailboxes, needle("Select folder (partial search OK): "))
+        
+        headers_by_uid = account.fetch_headers(client, mailbox)
+        uid_set = set(headers_by_uid.keys())
+        headers = available_headers(headers_by_uid, uid_set)
+           
+        print(f"Fetched {len(uid_set)} messages from {mailbox}")
+        return mailbox
 
-    # --- fetch headers ---
-    headers_by_uid = backend.fetch_headers(client, mailbox)
-    uid_set: set[bytes] = set(headers_by_uid.keys())
-    headers = available_headers(headers_by_uid,uid_set)
-    print(f"Fetched {len(uid_set)} messages from {mailbox}")
+    def show_senders():
+        senders = list_unique_addresses(headers_by_uid, "From")
+        print(f"Unique senders ({len(senders)}):")
+        for s in sorted(senders):
+            print(s)
 
-    # --- main menu ---
-    while True:
-        print("\nMenu:")
-        print("1. List unique senders")
-        print("2. List unique recipients")
-        print("3. List headers")
-        print("4. Filter UID set by header")
-        print("5. Print filtered set")
-        print("0. Exit")
-        choice = input("Choice: ").strip()
+    def show_recipients():
+        recipients = list_unique_addresses(headers_by_uid, "To")
+        print(f"Unique recipients ({len(recipients)}):")
+        for r in sorted(recipients):
+            print(r)
 
-        if choice == "0":
-            break
-        elif choice == "1":
-            senders = list_unique_addresses(headers_by_uid, "From")
-            print(f"Unique senders ({len(senders)}):")
-            for s in sorted(senders):
-                print(s)
-        elif choice == "2":
-            recipients = list_unique_addresses(headers_by_uid, "To")
-            print(f"Unique recipients ({len(recipients)}):")
-            for r in sorted(recipients):
-                print(r)
-        elif choice == "3":
-            print(f"Header fields ({len(headers)}):")
-            for h in sorted(headers):
-                print(h)
-        elif choice == "4":
-            header = None
-            reset = input("Reset UID set before filtering? (y/N) ").strip().lower()
-            if reset == "y":
+    def list_headers_action():
+        print(f"Header fields ({len(headers)}):")
+        for h in sorted(headers):
+            print(h)
+
+    def filter_uid_action():
+        nonlocal uid_set
+        # reset UID set if requested
+        try:
+            reset = needle("Reset UID set before filtering? (y/N)")
+            if reset.lower() == "y":
                 uid_set = all_uids(headers_by_uid)
-            
-            while not header:
-                needle = None
-                needle = input("Select header (partial name OK or 'exit'): ").strip()
-                if needle.lower() == "exit":
-                    client.logout()
-                    break
-                else:
-                    header = select_unique(headers, needle)
-            
-            needle = input("Filter by value): ").strip()
-            filtered = filter_by_header_value(headers_by_uid, header, needle)
+
+            # select header interactively
+            header = select_unique(headers, needle("Select header (partial name OK)"))
+
+            # select value to filter by
+            value = needle(f"Filter by value for header '{header}'")
+            filtered = filter_by_header_value(headers_by_uid, header, value)
             uid_set &= filtered
             print(f"Filtered, {len(uid_set)} messages remaining")
-        elif choice == "5":
-            print_messages(headers_by_uid, uid_set)
-        else:
-            print("Invalid choice")
+        except ExitToMenu:
+            # return to main menu cleanly
+            print("Returning to main menu.")
+
+    def print_messages_action():
+        print_messages(headers_by_uid, uid_set)
+
+    # --- dispatch dictionary ---
+    menu_actions = {
+        "1": select_mailbox,
+        "2": show_senders,
+        "3": show_recipients,
+        "4": list_headers_action,
+        "5": filter_uid_action,
+        "6": print_messages_action,
+    }
+
+# --- fetch headers ---
+    mailbox = None
+    while not mailbox:
+        mailbox = select_mailbox()
+
+    # --- main menu loop ---
+    while True:
+        print("\nMenu:")
+        print("0: Exit")
+        print("1: Select folder (mailbox)")
+        print("2: Unique senders")
+        print("3: Unique recipients")
+        print("4: List headers in UID set")
+        print("5: Filter UID set by header value")
+        print("6: Print messages")
+        try:
+            choice = needle("Enter choice")
+            if choice == "0":
+                break
+            action = menu_actions.get(choice)
+            if action:
+                action()
+            else:
+                print("Invalid choice")
+        except ExitToMenu:
+            # Any 'exit' typed during needle() inside actions returns here
+            print("Returning to main menu.")
 
     client.logout()
-
+    print("Logged out")
 
 if __name__ == "__main__":
     main()
