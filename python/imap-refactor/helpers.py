@@ -82,8 +82,8 @@ def select_unique(options: set[str], needle: str) -> str:
             print("No matches found. Try again.")
             return
         elif len(matches) == 1:
-            mailbox = next(iter(matches))
-            return mailbox
+            match = next(iter(matches))
+            return match
         else:    
             print("Multiple matches found:")
             for mb in sorted(matches):
