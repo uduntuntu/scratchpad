@@ -80,6 +80,7 @@ def select_unique(options: set[str], needle: str) -> str:
         matches = filter_by_substring(options, needle)
         if not matches:
             print("No matches found. Try again.")
+            return
         elif len(matches) == 1:
             mailbox = next(iter(matches))
             return mailbox
