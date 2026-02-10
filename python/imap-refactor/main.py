@@ -44,7 +44,9 @@ def main() -> None:
     # --- define menu actions ---
     def select_mailbox():
         global mailbox
-        mailbox = select_unique(mailboxes, needle("Select folder (partial search OK): "))
+        mailbox = None
+        while not mailbox:
+            mailbox = select_unique(mailboxes, needle("Select folder (partial search OK): "))
 
         info = client.select_folder(mailbox, readonly=True)
         print(f"Selected folder {mailbox}: {info[b'EXISTS']} messages.") 
