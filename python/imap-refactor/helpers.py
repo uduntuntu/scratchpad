@@ -70,14 +70,14 @@ def print_messages(
         subject = hdrs.get("Subject", "(no Subject)")
         print(f"{date} | {from_} -> {to}: {subject}")
 
-def select_mailbox(mailboxes: set[str], needle: str) -> str:
-    if not mailboxes:
-        print("Empty set of mailboxes.")
+def select_unique(options: set[str], needle: str) -> str:
+    if not options:
+        print("Empty set of options.")
         return
-    if needle in mailboxes:
+    if needle in options:
         return needle
     while True:
-        matches = filter_by_substring(mailboxes, needle)
+        matches = filter_by_substring(options, needle)
         if not matches:
             print("No matches found. Try again.")
         elif len(matches) == 1:
@@ -87,7 +87,7 @@ def select_mailbox(mailboxes: set[str], needle: str) -> str:
             print("Multiple matches found:")
             for mb in sorted(matches):
                 print(f"- {mb}")
-            print("Enter a more precise name.")
+            print("Enter a more precise search term.")
             return
             
 

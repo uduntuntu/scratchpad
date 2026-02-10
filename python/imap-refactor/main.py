@@ -2,13 +2,12 @@
 from __future__ import annotations
 from backend import IMAPBackend
 from helpers import (
-    filter_by_substring,
     all_uids,
     list_unique_addresses,
     available_headers,
     filter_by_header_value,
     print_messages,
-    select_mailbox,
+    select_unique,
 )
 import getpass
 
@@ -28,16 +27,18 @@ def main() -> None:
     mailbox = None
 
     while not mailbox:
+        needle = None
         needle = input("Select mailbox (partial name OK or 'exit'): ").strip()
         if needle.lower() == "exit":
             client.logout()
             break
         else:
-            mailbox = select_mailbox(mailboxes, needle)
+            mailbox = select_unique(mailboxes, needle)
 
     # --- fetch headers ---
     headers_by_uid = backend.fetch_headers(client, mailbox)
     uid_set: set[bytes] = set(headers_by_uid.keys())
+    headers = available_headers(headers_by_uid,uid_set)
     print(f"Fetched {len(uid_set)} messages from {mailbox}")
 
     # --- main menu ---
@@ -64,16 +65,25 @@ def main() -> None:
             for r in sorted(recipients):
                 print(r)
         elif choice == "3":
-            headers = available_headers(headers_by_uid,uid_set)
             print(f"Header fields ({len(headers)}):")
             for h in sorted(headers):
                 print(h)
         elif choice == "4":
+            header = None
             reset = input("Reset UID set before filtering? (y/N) ").strip().lower()
             if reset == "y":
                 uid_set = all_uids(headers_by_uid)
-            header = input("Header: ").strip()
-            needle = input("Value to search: ").strip()
+            
+            while not header:
+                needle = None
+                needle = input("Select header (partial name OK or 'exit'): ").strip()
+                if needle.lower() == "exit":
+                    client.logout()
+                    break
+                else:
+                    header = select_unique(headers, needle)
+            
+            needle = input("Filter by value): ").strip()
             filtered = filter_by_header_value(headers_by_uid, header, needle)
             uid_set &= filtered
             print(f"Filtered, {len(uid_set)} messages remaining")
