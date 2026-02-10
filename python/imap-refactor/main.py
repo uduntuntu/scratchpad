@@ -106,8 +106,16 @@ def main() -> None:
 
 # --- fetch headers ---
     mailbox = None
+    # --- fetch headers / initial mailbox ---
+    mailbox = None
     while not mailbox:
-        mailbox = select_mailbox()
+        try:
+            mailbox = select_mailbox()
+        except ExitToMenu:
+            print("No mailbox selected. Exiting.")
+            client.logout()
+            return
+
 
     # --- main menu loop ---
     while True:
