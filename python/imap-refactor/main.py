@@ -5,9 +5,10 @@ from helpers import (
     filter_by_substring,
     all_uids,
     list_unique_addresses,
-    list_headers,
+    available_headers,
     filter_by_header_value,
     print_messages,
+    select_mailbox,
 )
 import getpass
 
@@ -22,27 +23,17 @@ def main() -> None:
     client = backend.connect()
     print("Connection: OK")
 
-    # --- fetch mailboxes ---
+    # --- select mailbox  ---
     mailboxes = backend.list_mailboxes(client)
-    mailbox: str | None = None
+    mailbox = None
 
-    while mailbox is None:
+    while not mailbox:
         needle = input("Select mailbox (partial name OK or 'exit'): ").strip()
         if needle.lower() == "exit":
             client.logout()
-            return
-
-        matches = filter_by_substring(mailboxes, needle)
-        if not matches:
-            print("No matches found. Try again.")
-        elif len(matches) > 1:
-            print("Multiple matches found:")
-            for mb in sorted(matches):
-                print(f"- {mb}")
-            print("Enter a more precise name.")
+            break
         else:
-            mailbox = next(iter(matches))
-            print(f"Selected mailbox: {mailbox}")
+            mailbox = select_mailbox(mailboxes, needle)
 
     # --- fetch headers ---
     headers_by_uid = backend.fetch_headers(client, mailbox)
@@ -73,9 +64,9 @@ def main() -> None:
             for r in sorted(recipients):
                 print(r)
         elif choice == "3":
-            hdrs = list_headers(headers_by_uid)
-            print(f"Header fields ({len(hdrs)}):")
-            for h in sorted(hdrs):
+            headers = available_headers(headers_by_uid,uid_set)
+            print(f"Header fields ({len(headers)}):")
+            for h in sorted(headers):
                 print(h)
         elif choice == "4":
             reset = input("Reset UID set before filtering? (y/N) ").strip().lower()

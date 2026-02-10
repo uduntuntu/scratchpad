@@ -32,12 +32,16 @@ def list_unique_addresses(
     return unique
 
 
-def list_headers(headers_by_uid: dict[bytes, dict[str, str]]) -> set[str]:
-    """Return all unique header field names across all messages."""
-    all_headers: set[str] = set()
-    for hdrs in headers_by_uid.values():
-        all_headers.update(hdrs.keys())
-    return all_headers
+def available_headers(headers_by_uid: dict[bytes, dict[str, str]], uid_set: set[bytes]) -> set[str]:
+    """
+    Return all unique headers present in the messages identified by uid_set.
+    """
+    headers: set[str] = set()
+    for uid in uid_set:
+        hdrs = headers_by_uid.get(uid)
+        if hdrs:
+            headers.update(hdrs.keys())
+    return headers
 
 
 def filter_by_header_value(
@@ -65,3 +69,25 @@ def print_messages(
         to = hdrs.get("To", "(no To)")
         subject = hdrs.get("Subject", "(no Subject)")
         print(f"{date} | {from_} -> {to}: {subject}")
+
+def select_mailbox(mailboxes: set[str], needle: str) -> str:
+    if not mailboxes:
+        print("Empty set of mailboxes.")
+        return
+    if needle in mailboxes:
+        return needle
+    while True:
+        matches = filter_by_substring(mailboxes, needle)
+        if not matches:
+            print("No matches found. Try again.")
+        elif len(matches) == 1:
+            mailbox = next(iter(matches))
+            return mailbox
+        else:    
+            print("Multiple matches found:")
+            for mb in sorted(matches):
+                print(f"- {mb}")
+            print("Enter a more precise name.")
+            return
+            
+
