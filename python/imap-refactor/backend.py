@@ -112,3 +112,18 @@ class IMAPBackend:
             headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
 
         return headers_by_uid
+    
+    # 4. Move all messages identified by UID from mailbox to another
+
+    def move_uid_set(
+        client: IMAPClient, 
+        src_mailbox: str, 
+        dst_mailbox: str, 
+        uid_set: set[int],
+        ) -> None:
+
+        if not uid_set:
+            return
+
+        client.select_folder(src_mailbox)
+        client.move(uid_set, dst_mailbox)

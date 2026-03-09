@@ -57,15 +57,13 @@ def main() -> None:
         info = client.select_folder(mailbox, readonly=True)
         print(f"Selected folder {mailbox}: {info[b'EXISTS']} messages.")
 
-        if not refresh_cache:
-            return
-
         headers_by_uid = account.fetch_headers(client, mailbox)
         uid_set = set(headers_by_uid.keys())
         headers = available_headers(headers_by_uid, uid_set) 
 
     def refresh_headers():
         global headers_by_uid, uid_set, headers, mailbox
+        
         headers_by_uid = account.fetch_headers(client, mailbox)
         uid_set = set(headers_by_uid.keys())
         headers = available_headers(headers_by_uid, uid_set)
@@ -125,6 +123,26 @@ def main() -> None:
         data = client.fetch([uid], ["RFC822"])
         print_message(data[uid][b"RFC822"])
 
+    def move_uid_set_action():
+        global uid_set, mailbox
+        src_mailbox = mailbox
+        dst_mailbox = select_unique(mailboxes, needle("Select destination folder (partial search OK): "))
+        print(f"Moving {len(uid_set)} messages from {src_mailbox} to {dst_mailbox}")        
+        IMAPBackend.move_uid_set(client, src_mailbox, dst_mailbox, uid_set)
+        refresh_headers()
+
+    def delete_empty_mailbox():
+        global mailboxes, mailbox, headers_by_uid
+        refresh_headers()
+        if not headers_by_uid:
+            client.unselect_folder()
+            client.delete_folder(mailbox)
+            print(f'Deleted empty folder {mailbox}')
+            mailboxes = account.list_mailboxes(client)
+            select_mailbox()
+        else:
+            print(f'Mailbox {mailbox} not empty. Aborted.')
+
     # --- dispatch dictionary ---
     menu_actions = {
         "1": select_mailbox,
@@ -135,6 +153,8 @@ def main() -> None:
         "6": filter_uid_action,
         "7": print_messages_action,
         "8": show_message_action,
+        "9": move_uid_set_action,
+        "10": delete_empty_mailbox,
     }
 
 # --- Select initial mailbox ---
@@ -152,13 +172,15 @@ def main() -> None:
         print("\nMenu:")
         print("0: Exit")
         print("1: Select folder (mailbox)")
-        print("2: Fetch headers")
+        print("2: Refresh headers")
         print("3: Unique senders")
         print("4: Unique recipients")
         print("5: List headers in UID set")
         print("6: Filter UID set by header value")
         print("7: Print messages")
         print("8. Show message")
+        print("9. Move messages in UID set")
+        print("10. Delete empty mailbox")
         try:
             choice = needle("Enter choice")
             if choice == "0":
