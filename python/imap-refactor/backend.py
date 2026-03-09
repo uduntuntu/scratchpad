@@ -96,17 +96,18 @@ class IMAPBackend:
     # 3. Fetch headers for all messages in a mailbox
     @staticmethod
     def fetch_headers(client: IMAPClient, mailbox: str) -> dict[int, dict[str, str]]:
-        """
-        Fetch all message headers from a selected mailbox.
-        Returns a dict keyed by UID for mass/set operations.
-        Only headers are fetched using BODY.PEEK[HEADER].
-        """
         client.select_folder(mailbox, readonly=True)
+
         uids = client.search("ALL")
         headers_by_uid: dict[int, dict[str, str]] = {}
 
-        for uid in uids:
-            raw_headers = client.fetch(uid, ["BODY.PEEK[HEADER]"])[uid][b"BODY[HEADER]"]
+        if not uids:
+            return headers_by_uid
+
+        data = client.fetch(uids, ["BODY.PEEK[HEADER]"])
+
+        for uid, msgdata in data.items():
+            raw_headers = msgdata[b"BODY[HEADER]"]
             msg = email.message_from_bytes(raw_headers)
             headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
 
