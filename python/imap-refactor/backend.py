@@ -101,15 +101,20 @@ class IMAPBackend:
         uids = client.search("ALL")
         headers_by_uid: dict[int, dict[str, str]] = {}
 
+        chunk_size = 500
+        
         if not uids:
             return headers_by_uid
 
-        data = client.fetch(uids, ["BODY.PEEK[HEADER]"])
+        for i in range(0, len(uids), chunk_size):
+            chunk = uids[i:i + chunk_size]
 
-        for uid, msgdata in data.items():
-            raw_headers = msgdata[b"BODY[HEADER]"]
-            msg = email.message_from_bytes(raw_headers)
-            headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
+            data = client.fetch(chunk, ["BODY.PEEK[HEADER]"])
+
+            for uid, msgdata in data.items():
+                raw_headers = msgdata[b"BODY[HEADER]"]
+                msg = email.message_from_bytes(raw_headers)
+                headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
 
         return headers_by_uid
     
