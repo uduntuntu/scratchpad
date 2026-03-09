@@ -3,7 +3,13 @@ from typing import Set, Dict
 import email
 from email.header import decode_header
 from imapclient import IMAPClient
+import os
+import json
+import base64
 
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 # --- helpers ---
 def decode_mime_header(val: str) -> str:
@@ -19,6 +25,36 @@ def decode_mime_header(val: str) -> str:
             decoded += part
     return decoded
 
+# --- Google Mail backend ---
+SCOPES = ["https://mail.google.com/"]
+
+def get_gmail_token(self):
+
+    token_path = os.path.join(self.config_dir, "token.json")
+    cred_path = os.path.join(self.config_dir, "credentials.json")
+
+    creds = None
+
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
+
+    if not creds or not creds.valid:
+
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                cred_path,
+                SCOPES
+            )
+
+            creds = flow.run_local_server(port=0)
+
+        with open(token_path, "w") as f:
+            f.write(creds.to_json())
+
+    return creds.token
 
 # --- IMAP backend ---
 class IMAPBackend:
@@ -29,12 +65,29 @@ class IMAPBackend:
         self.port = port
 
     # 1. Connect
-    def connect(self) -> IMAPClient:
-        """
-        Connect to the IMAP server and return an IMAPClient object.
-        """
+    def connect(self):
+
         client = IMAPClient(self.host, port=self.port, ssl=True)
-        client.login(self.user, self.password)
+
+        if self.auth_method == "password":
+
+            client.login(self.user, self.password)
+
+        elif self.auth_method == "xoauth2":
+
+            token = self.get_gmail_token()
+
+            auth_string = f"user={self.user}\x01auth=Bearer {token}\x01\x01"
+            auth_string = base64.b64encode(auth_string.encode())
+
+            client._imap.authenticate(
+                "XOAUTH2",
+                lambda x: auth_string
+            )
+
+        else:
+            raise ValueError("Unsupported auth method")
+
         return client
 
     # 2. List mailboxes
