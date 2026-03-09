@@ -74,13 +74,8 @@ class IMAPBackend:
         client = IMAPClient(self.host, port=self.port, ssl=True)
 
         if self.host.endswith("gmail.com"):
-
             token = self.get_gmail_token()
-
-            auth = f"user={self.user}\x01auth=Bearer {token}\x01\x01"
-            auth = base64.b64encode(auth.encode())
-
-            client._imap.authenticate("XOAUTH2", lambda _: auth)
+            client.oauth2_login(self.user, token)
             return client
 
         if not self.user or not self.password:
