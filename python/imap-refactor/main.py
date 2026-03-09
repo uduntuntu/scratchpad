@@ -27,7 +27,7 @@ def main() -> None:
         account = IMAPBackend(host, user, password)
         client = account.connect()
 
-    mailboxes = account.list_mailboxes(client)
+    mailboxes: set[str] = None
     mailbox: str = None
 
     headers_by_uid: dict[int, dict[str, str]] = None
@@ -48,8 +48,8 @@ def main() -> None:
 
     # --- define menu actions ---
     def select_mailbox(refresh_cache=True):
-        global mailbox, headers_by_uid, uid_set, headers
-
+        global mailboxes, mailbox, headers_by_uid, uid_set, headers
+        mailboxes = account.list_mailboxes(client)
         mailbox = None
         while not mailbox:
             mailbox = select_unique(mailboxes, needle("Select folder (partial search OK): "))
@@ -124,7 +124,7 @@ def main() -> None:
         print_message(data[uid][b"RFC822"])
 
     def move_uid_set_action():
-        global uid_set, mailbox
+        global uid_set, mailbox, mailboxes
         src_mailbox = mailbox
         dst_mailbox = select_unique(mailboxes, needle("Select destination folder (partial search OK): "))
         print(f"Moving {len(uid_set)} messages from {src_mailbox} to {dst_mailbox}")        
@@ -138,7 +138,6 @@ def main() -> None:
             client.unselect_folder()
             client.delete_folder(mailbox)
             print(f'Deleted empty folder {mailbox}')
-            mailboxes = account.list_mailboxes(client)
             select_mailbox()
         else:
             print(f'Mailbox {mailbox} not empty. Aborted.')
