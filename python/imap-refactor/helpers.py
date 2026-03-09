@@ -58,17 +58,17 @@ def filter_by_header_value(
     return result
 
 
-def print_messages(
+def print_messages_in_uid_set(
     headers_by_uid: dict[bytes, dict[str, str]], uid_set: set[bytes]
 ) -> None:
-    """Print message info (Date | From -> To: Subject) for the given UID set."""
+    """Print message info (UID | Date | From -> To: Subject) for the given UID set."""
     for uid in sorted(uid_set):
         hdrs = headers_by_uid[uid]
         date = hdrs.get("Date", "(no Date)")
         from_ = hdrs.get("From", "(no From)")
         to = hdrs.get("To", "(no To)")
         subject = hdrs.get("Subject", "(no Subject)")
-        print(f"{date} | {from_} -> {to}: {subject}")
+        print(f"{uid} | {date} | {from_} -> {to}: {subject}")
 
 def select_unique(options: set[str], needle: str) -> str:
     if not options:

@@ -4,8 +4,6 @@ import email
 from email.header import decode_header
 from imapclient import IMAPClient
 import os
-import json
-import base64
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -43,8 +41,8 @@ class IMAPBackend:
 
     def get_gmail_token(self):
 
-        token_path = os.path.join("token.json")
-        cred_path = os.path.join("credentials.json")
+        token_path = "token.json"
+        cred_path = "credentials.json"
 
         creds = None
 

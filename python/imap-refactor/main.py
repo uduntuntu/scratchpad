@@ -5,7 +5,7 @@ from helpers import (
     list_unique_addresses,
     available_headers,
     filter_by_header_value,
-    print_messages,
+    print_messages_in_uid_set,
     select_unique,
 )
 import getpass
@@ -46,16 +46,24 @@ def main() -> None:
         return value
 
     # --- define menu actions ---
-    def select_mailbox():
-        global mailbox
+    def select_mailbox(refresh_cache=True):
+        global mailbox, headers_by_uid, uid_set, headers
+
         mailbox = None
         while not mailbox:
             mailbox = select_unique(mailboxes, needle("Select folder (partial search OK): "))
 
         info = client.select_folder(mailbox, readonly=True)
-        print(f"Selected folder {mailbox}: {info[b'EXISTS']} messages.") 
+        print(f"Selected folder {mailbox}: {info[b'EXISTS']} messages.")
 
-    def fetch_headers():
+        if not refresh_cache:
+            return
+
+        headers_by_uid = account.fetch_headers(client, mailbox)
+        uid_set = set(headers_by_uid.keys())
+        headers = available_headers(headers_by_uid, uid_set) 
+
+    def refresh_headers():
         global headers_by_uid, uid_set, headers, mailbox
         headers_by_uid = account.fetch_headers(client, mailbox)
         uid_set = set(headers_by_uid.keys())
@@ -65,7 +73,6 @@ def main() -> None:
    
     def show_senders():
         global headers_by_uid
-        fetch_headers()
         senders = list_unique_addresses(headers_by_uid, "From")
         print(f"Unique senders ({len(senders)}):")
         for s in sorted(senders):
@@ -73,7 +80,6 @@ def main() -> None:
 
     def show_recipients():
         global headers_by_uid
-        fetch_headers()
         recipients = list_unique_addresses(headers_by_uid, "To")
         print(f"Unique recipients ({len(recipients)}):")
         for r in sorted(recipients):
@@ -81,14 +87,12 @@ def main() -> None:
 
     def list_headers_action():
         global headers
-        fetch_headers()
         print(f"Header fields ({len(headers)}):")
         for h in sorted(headers):
             print(h)
 
     def filter_uid_action():
         global headers, headers_by_uid, uid_set
-        fetch_headers()
         # reset UID set if requested
         try:
             reset = needle("Reset UID set before filtering? (y/N)")
@@ -109,18 +113,27 @@ def main() -> None:
 
     def print_messages_action():
         global headers_by_uid, uid_set
-        fetch_headers()
-        print_messages(headers_by_uid, uid_set)
+        print_messages_in_uid_set(headers_by_uid, uid_set)
+
+    def show_message_action():
+        global headers_by_uid, uid_set
+        uid = int(needle("Select message"))
+        if uid not in uid_set:
+            print("UID not in current set")
+            return
+        data = client.fetch([uid], ["RFC822"])
+        print(data[uid][b"RFC822"])
 
     # --- dispatch dictionary ---
     menu_actions = {
         "1": select_mailbox,
-        "2": fetch_headers,
+        "2": refresh_headers,
         "3": show_senders,
         "4": show_recipients,
         "5": list_headers_action,
         "6": filter_uid_action,
         "7": print_messages_action,
+        "8": show_message_action,
     }
 
 # --- Select initial mailbox ---
@@ -144,6 +157,7 @@ def main() -> None:
         print("5: List headers in UID set")
         print("6: Filter UID set by header value")
         print("7: Print messages")
+        print("8. Show message")
         try:
             choice = needle("Enter choice")
             if choice == "0":
