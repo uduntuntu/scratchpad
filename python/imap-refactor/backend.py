@@ -56,6 +56,10 @@ def get_gmail_token(self):
 
     return creds.token
 
+# --- Exception for credentials exchange ---
+class CredentialsRequired(Exception):
+    pass
+
 # --- IMAP backend ---
 class IMAPBackend:
     def __init__(self, host: str, user: str, password: str, port: int = 993):
@@ -69,25 +73,20 @@ class IMAPBackend:
 
         client = IMAPClient(self.host, port=self.port, ssl=True)
 
-        if self.auth_method == "password":
-
-            client.login(self.user, self.password)
-
-        elif self.auth_method == "xoauth2":
+        if self.host.endswith("gmail.com"):
 
             token = self.get_gmail_token()
 
-            auth_string = f"user={self.user}\x01auth=Bearer {token}\x01\x01"
-            auth_string = base64.b64encode(auth_string.encode())
+            auth = f"user={self.user}\x01auth=Bearer {token}\x01\x01"
+            auth = base64.b64encode(auth.encode())
 
-            client._imap.authenticate(
-                "XOAUTH2",
-                lambda x: auth_string
-            )
+            client._imap.authenticate("XOAUTH2", lambda _: auth)
+            return client
 
-        else:
-            raise ValueError("Unsupported auth method")
+        if not self.user or not self.password:
+            raise CredentialsRequired()
 
+        client.login(self.user, self.password)
         return client
 
     # 2. List mailboxes
