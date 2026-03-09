@@ -25,36 +25,6 @@ def decode_mime_header(val: str) -> str:
             decoded += part
     return decoded
 
-# --- Google Mail backend ---
-SCOPES = ["https://mail.google.com/"]
-
-def get_gmail_token(self):
-
-    token_path = os.path.join(self.config_dir, "token.json")
-    cred_path = os.path.join(self.config_dir, "credentials.json")
-
-    creds = None
-
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-
-    if not creds or not creds.valid:
-
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                cred_path,
-                SCOPES
-            )
-
-            creds = flow.run_local_server(port=0)
-
-        with open(token_path, "w") as f:
-            f.write(creds.to_json())
-
-    return creds.token
 
 # --- Exception for credentials exchange ---
 class CredentialsRequired(Exception):
@@ -67,6 +37,37 @@ class IMAPBackend:
         self.user = user
         self.password = password
         self.port = port
+
+    # --- Google Mail backend ---
+    SCOPES = ["https://mail.google.com/"]
+
+    def get_gmail_token(self):
+
+        token_path = os.path.join("token.json")
+        cred_path = os.path.join("credentials.json")
+
+        creds = None
+
+        if os.path.exists(token_path):
+            creds = Credentials.from_authorized_user_file(token_path, self.SCOPES)
+
+        if not creds or not creds.valid:
+
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    cred_path,
+                    self.SCOPES
+                )
+
+                creds = flow.run_local_server(port=0)
+
+            with open(token_path, "w") as f:
+                f.write(creds.to_json())
+
+        return creds.token
 
     # 1. Connect
     def connect(self):

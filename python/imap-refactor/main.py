@@ -1,5 +1,5 @@
 from __future__ import annotations
-from backend import IMAPBackend
+from backend import IMAPBackend, CredentialsRequired
 from helpers import (
     all_uids,
     list_unique_addresses,
@@ -15,13 +15,17 @@ class ExitToMenu(Exception):
     pass
 
 def main() -> None:
-    # --- credentials ---
+
     host = input("IMAP server host: ").strip()
     user = input("Username: ").strip()
-    password = getpass.getpass("Password: ")
+    account = IMAPBackend(host, user, None)
+    try:
+        client = account.connect()
+    except CredentialsRequired:
+        password = getpass.getpass("Password: ")
+        account = IMAPBackend(host, user, password)
+        client = account.connect()
 
-    account = IMAPBackend(host, user, password)
-    client = account.connect()
     mailboxes = account.list_mailboxes(client)
     mailbox: str = None
 
