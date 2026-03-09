@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 from typing import Set, Dict
+import email
 
 def filter_by_substring(items: set[str], needle: str) -> set[str]:
     """
@@ -69,6 +70,36 @@ def print_messages_in_uid_set(
         to = hdrs.get("To", "(no To)")
         subject = hdrs.get("Subject", "(no Subject)")
         print(f"{uid} | {date} | {from_} -> {to}: {subject}")
+
+import email
+
+
+def print_message(raw):
+    msg = email.message_from_bytes(raw)
+
+    # headerit
+    print(f"From: {msg.get('From','')}")
+    print(f"To: {msg.get('To','')}")
+    print(f"Date: {msg.get('Date','')}")
+    print(f"Subject: {msg.get('Subject','')}")
+    print()
+
+    body = None
+
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                body = part.get_payload(decode=True)
+                charset = part.get_content_charset() or "utf-8"
+                print(body.decode(charset, errors="replace"))
+                return
+    else:
+        body = msg.get_payload(decode=True)
+        charset = msg.get_content_charset() or "utf-8"
+
+    if body:
+        print(body.decode(charset, errors="replace"))
+
 
 def select_unique(options: set[str], needle: str) -> str:
     if not options:

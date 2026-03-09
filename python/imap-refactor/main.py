@@ -7,6 +7,7 @@ from helpers import (
     filter_by_header_value,
     print_messages_in_uid_set,
     select_unique,
+    print_message,
 )
 import getpass
 
@@ -122,7 +123,7 @@ def main() -> None:
             print("UID not in current set")
             return
         data = client.fetch([uid], ["RFC822"])
-        print(data[uid][b"RFC822"])
+        print_message(data[uid][b"RFC822"])
 
     # --- dispatch dictionary ---
     menu_actions = {
