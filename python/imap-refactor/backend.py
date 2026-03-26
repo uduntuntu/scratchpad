@@ -117,7 +117,9 @@ class IMAPBackend:
 
             for uid, msgdata in data.items():
                 raw_headers = msgdata[b"BODY[HEADER]"]
-                msg = email.message_from_bytes(b'raw_headers')
+                if not isinstance(raw_headers, (bytes, bytearray)):
+                    continue
+                msg = email.message_from_bytes(raw_headers)
                 headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
 
         return headers_by_uid
