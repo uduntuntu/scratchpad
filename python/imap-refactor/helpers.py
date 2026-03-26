@@ -1,68 +1,62 @@
-#!/usr/bin/env python3
 from __future__ import annotations
-from typing import Set, Dict
 import email
 
+
 def filter_by_substring(items: set[str], needle: str) -> set[str]:
-    """
-    Returns subset of raw bytes where decoded item contains the Unicode needle.
-    Works for mailbox selection or any IMAP raw-byte sets.
-    """
-    result: set[bytes] = set()
-    for item in items:
-        if needle in item:
-            result.add(item) 
-    return result
+    return {item for item in items if needle in item}
 
 
-def all_uids(headers_by_uid: dict[bytes, dict[str, str]]) -> set[bytes]:
-    """Return all UIDs from the headers dictionary."""
+def all_uids(headers_by_uid: dict[int, dict[str, str]]) -> set[int]:
     return set(headers_by_uid.keys())
 
 
 def list_unique_addresses(
-    headers_by_uid: dict[bytes, dict[str, str]], header: str
+    headers_by_uid: dict[int, dict[str, str]], header: str
 ) -> set[str]:
-    """Return a set of unique addresses from the specified header."""
     unique: set[str] = set()
+
     for hdrs in headers_by_uid.values():
         val = hdrs.get(header, "")
         if val:
             addresses = [addr.strip() for addr in val.split(",")]
             unique.update(addresses)
+
     return unique
 
 
-def available_headers(headers_by_uid: dict[bytes, dict[str, str]], uid_set: set[bytes]) -> set[str]:
-    """
-    Return all unique headers present in the messages identified by uid_set.
-    """
+def available_headers(
+    headers_by_uid: dict[int, dict[str, str]],
+    uid_set: set[int],
+) -> set[str]:
     headers: set[str] = set()
+
     for uid in uid_set:
         hdrs = headers_by_uid.get(uid)
         if hdrs:
             headers.update(hdrs.keys())
+
     return headers
 
 
 def filter_by_header_value(
-    headers_by_uid: dict[bytes, dict[str, str]], header: str, needle: str
-) -> set[bytes]:
-    """
-    Returns UID set where the specified header contains the Unicode needle.
-    """
-    result: set[bytes] = set()
+    headers_by_uid: dict[int, dict[str, str]],
+    header: str,
+    needle: str,
+) -> set[int]:
+    result: set[int] = set()
+
     for uid, hdrs in headers_by_uid.items():
         val = hdrs.get(header, "")
         if needle in val:
             result.add(uid)
+
     return result
 
 
 def print_messages_in_uid_set(
-    headers_by_uid: dict[bytes, dict[str, str]], uid_set: set[bytes]
+    headers_by_uid: dict[int, dict[str, str]],
+    uid_set: set[int],
 ) -> None:
-    """Print message info (UID | Date | From -> To: Subject) for the given UID set."""
     for uid in sorted(uid_set):
         hdrs = headers_by_uid[uid]
         date = hdrs.get("Date", "(no Date)")
@@ -71,13 +65,10 @@ def print_messages_in_uid_set(
         subject = hdrs.get("Subject", "(no Subject)")
         print(f"{uid} | {date} | {from_} -> {to}: {subject}")
 
-import email
 
-
-def print_message(raw):
+def print_message(raw: bytes):
     msg = email.message_from_bytes(raw)
 
-    # headerit
     print(f"From: {msg.get('From','')}")
     print(f"To: {msg.get('To','')}")
     print(f"Date: {msg.get('Date','')}")
@@ -91,35 +82,36 @@ def print_message(raw):
             if part.get_content_type() == "text/plain":
                 body = part.get_payload(decode=True)
                 charset = part.get_content_charset() or "utf-8"
-                print(body.decode(charset, errors="replace"))
+                print(body)
                 return
     else:
         body = msg.get_payload(decode=True)
         charset = msg.get_content_charset() or "utf-8"
 
     if body:
-        print(body.decode(charset, errors="replace"))
+        print(body)
 
 
-def select_unique(options: set[str], needle: str) -> str:
+def select_unique(options: set[str], needle: str) -> str | None:
     if not options:
         print("Empty set of options.")
-        return
+        return None
+
     if needle in options:
         return needle
-    while True:
-        matches = filter_by_substring(options, needle)
-        if not matches:
-            print("No matches found. Try again.")
-            return
-        elif len(matches) == 1:
-            match = next(iter(matches))
-            return match
-        else:    
-            print("Multiple matches found:")
-            for mb in sorted(matches):
-                print(f"- {mb}")
-            print("Enter a more precise search term.")
-            return
-            
 
+    matches = filter_by_substring(options, needle)
+
+    if not matches:
+        print("No matches found.")
+        return None
+
+    if len(matches) == 1:
+        return next(iter(matches))
+
+    print("Multiple matches found:")
+    for mb in sorted(matches):
+        print(f"- {mb}")
+
+    print("Enter a more precise search term.")
+    return None

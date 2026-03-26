@@ -30,7 +30,7 @@ class CredentialsRequired(Exception):
 
 # --- IMAP backend ---
 class IMAPBackend:
-    def __init__(self, host: str, user: str, password: str, port: int = 993):
+    def __init__(self, host: str, user: str, password: str | None, port: int = 993):
         self.host = host
         self.user = user
         self.password = password
@@ -39,7 +39,7 @@ class IMAPBackend:
     # --- Google Mail backend ---
     SCOPES = ["https://mail.google.com/"]
 
-    def get_gmail_token(self):
+    def get_gmail_token(self) -> str:
 
         token_path = "token.json"
         cred_path = "credentials.json"
@@ -65,7 +65,11 @@ class IMAPBackend:
             with open(token_path, "w") as f:
                 f.write(creds.to_json())
 
-        return creds.token
+        token = creds.token
+        if token is None:
+            raise RuntimeError("OAuth token is missing")
+
+        return token
 
     # 1. Connect
     def connect(self):
@@ -113,13 +117,14 @@ class IMAPBackend:
 
             for uid, msgdata in data.items():
                 raw_headers = msgdata[b"BODY[HEADER]"]
-                msg = email.message_from_bytes(raw_headers)
+                msg = email.message_from_bytes(b'raw_headers')
                 headers_by_uid[uid] = {k: decode_mime_header(v) for k, v in msg.items()}
 
         return headers_by_uid
     
     # 4. Move all messages identified by UID from mailbox to another
 
+    @staticmethod
     def move_uid_set(
         client: IMAPClient, 
         src_mailbox: str, 
